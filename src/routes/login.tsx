@@ -15,7 +15,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import favicon from "@/../public/favicon.png";
+import favicon from "@/assets/favicon.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

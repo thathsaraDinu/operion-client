@@ -10,7 +10,7 @@ import {
   UserCircle,
   LogOut,
 } from "lucide-react";
-import favicon from "@/../public/favicon.png";
+import favicon from "@/assets/favicon.png";
 import {
   Sidebar,
   SidebarContent,
