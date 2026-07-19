@@ -31,7 +31,7 @@ export const Route = createFileRoute("/reset-password")({
   validateSearch: z.object({
     token: z.string().optional(),
   }),
-  head: () => ({ meta: [{ title: "Reset Password — Operion" }] }),
+  head: () => ({ meta: [{ title: "Reset Password - Operion" }] }),
   component: ResetPasswordPage,
 });
 

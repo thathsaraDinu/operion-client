@@ -49,7 +49,7 @@ apiClient.interceptors.response.use(
     const body = response.data;
     if (isEnvelope(body)) {
       if (body.success === false) {
-        // Server reported failure with a 2xx — surface as an axios error.
+        // Server reported failure with a 2xx - surface as an axios error.
         return Promise.reject(
           new AxiosError(
             body.message || "Request failed",

@@ -22,8 +22,7 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { attendanceApi } from "@/lib/api/attendance";
 import { leavesApi } from "@/lib/api/leaves";
-import { employeesApi } from "@/lib/api/employees";
-import { changePassword } from "@/lib/api/auth";
+import { getProfile, changePassword } from "@/lib/api/auth";
 import { apiErrorMessage } from "@/lib/api/client";
 import { initials, fmtDate, fmtTime } from "@/lib/format";
 
@@ -43,13 +42,17 @@ const changePasswordSchema = z.object({
 type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
 
 export const Route = createFileRoute("/_app/profile")({
-  head: () => ({ meta: [{ title: "Profile — Operion" }] }),
+  head: () => ({ meta: [{ title: "Profile - Operion" }] }),
   component: ProfilePage,
 });
 
 function ProfilePage() {
   const user = useAuthStore((s) => s.user);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const profile = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => getProfile(),
+  });
   const attendance = useQuery({
     queryKey: ["attendance", "me", "profile"],
     queryFn: () => attendanceApi.mine({ size: 5, sort: "date,desc" }),
@@ -57,11 +60,6 @@ function ProfilePage() {
   const leaves = useQuery({
     queryKey: ["leaves", "me", "profile"],
     queryFn: () => leavesApi.mine({ size: 5, sort: "createdAt,desc" }),
-  });
-  const employeeDetails = useQuery({
-    queryKey: ["employee", user?.id],
-    queryFn: () => employeesApi.get(user!.id),
-    enabled: !!user,
   });
 
   if (!user) return null;
@@ -89,14 +87,14 @@ function ProfilePage() {
             </div>
             <div className="text-sm text-muted-foreground">{user.email}</div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {employeeDetails.data?.departmentName && (
-                <span>Department: {employeeDetails.data.departmentName}</span>
+              {profile.data?.departmentName && (
+                <span>Department: {profile.data.departmentName}</span>
               )}
-              {employeeDetails.data?.position && (
-                <span>Position: {employeeDetails.data.position}</span>
+              {profile.data?.position && (
+                <span>Position: {profile.data.position}</span>
               )}
-              {employeeDetails.data?.phone && (
-                <span>Phone: {employeeDetails.data.phone}</span>
+              {profile.data?.phone && (
+                <span>Phone: {profile.data.phone}</span>
               )}
             </div>
           </div>
@@ -119,8 +117,8 @@ function ProfilePage() {
                     <div>
                       <div className="font-medium">{fmtDate(a.date)}</div>
                       <div className="text-xs text-muted-foreground">
-                        {a.clockIn ? fmtTime(a.clockIn) : "—"} ·{" "}
-                        {a.clockOut ? fmtTime(a.clockOut) : "—"}
+                        {a.clockIn ? fmtTime(a.clockIn) : "-"} ·{" "}
+                        {a.clockOut ? fmtTime(a.clockOut) : "-"}
                       </div>
                     </div>
                     <StatusBadge value={a.status} />

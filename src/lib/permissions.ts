@@ -26,6 +26,9 @@ export const PERMISSIONS = {
   "attendance:readAll": ["ADMIN", "HR", "MANAGER"],
   "attendance:update": ["ADMIN", "HR"],
 
+  // Dashboard
+  "dashboard:view": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
+
   // Leaves
   "leaves:create": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
   "leaves:readSelf": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
@@ -36,19 +39,19 @@ export const PERMISSIONS = {
 
   // Projects
   "projects:read": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
-  "projects:create": ["ADMIN", "HR", "MANAGER"],
-  "projects:update": ["ADMIN", "HR", "MANAGER"],
-  "projects:delete": ["ADMIN", "HR"],
+  "projects:create": ["ADMIN", "MANAGER"],
+  "projects:update": ["ADMIN", "MANAGER"],
+  "projects:delete": ["ADMIN"],
   "projects:readMembers": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
   "projects:manageMembers": ["ADMIN", "HR", "MANAGER"],
 
   // Tasks
-  "tasks:readAll": ["ADMIN", "HR", "MANAGER"],
+  "tasks:readAll": ["ADMIN", "MANAGER"],
   "tasks:readByProject": ["ADMIN", "HR", "MANAGER", "EMPLOYEE"],
-  "tasks:readByEmployee": ["ADMIN", "HR", "MANAGER"],
-  "tasks:create": ["ADMIN", "HR", "MANAGER"],
-  "tasks:update": ["ADMIN", "HR", "MANAGER"],
-  "tasks:delete": ["ADMIN", "HR", "MANAGER"],
+  "tasks:readByEmployee": ["ADMIN", "MANAGER"],
+  "tasks:create": ["ADMIN", "MANAGER"],
+  "tasks:update": ["ADMIN", "MANAGER"],
+  "tasks:delete": ["ADMIN", "MANAGER"],
 } as const satisfies Record<string, Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/common/status-badge";
 import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states";
-import { RoleGate, useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
 import { Field } from "@/routes/_app.employees";
 import { projectsApi } from "@/lib/api/projects";
 import { employeesApi } from "@/lib/api/employees";
@@ -66,14 +66,15 @@ export const Route = createFileRoute("/_app/project-detail")({
   validateSearch: z.object({
     id: z.string().optional(),
   }),
-  head: () => ({ meta: [{ title: "Project — Operion" }] }),
+  head: () => ({ meta: [{ title: "Project - Operion" }] }),
   component: ProjectDetailPage,
 });
 
 function ProjectDetailPage() {
   const search = Route.useSearch();
   const projectId = search.id ? Number(search.id) : null;
-  const canManage = useHasRole("ADMIN", "HR", "MANAGER");
+  const canUpdate = useCan("projects:update");
+  const canManageMembers = useCan("projects:manageMembers");
   const [addOpen, setAddOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -139,11 +140,11 @@ function ProjectDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Team members</h2>
-          <RoleGate roles={["ADMIN", "HR", "MANAGER"]}>
+          {canManageMembers ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <UserPlus className="h-4 w-4" /> Add member
             </Button>
-          </RoleGate>
+          ) : null}
         </div>
         {members.isLoading ? (
           <LoadingBlock />
@@ -157,12 +158,12 @@ function ProjectDetailPage() {
                   <TableHead>Employee</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Assigned</TableHead>
-                  {canManage ? <TableHead className="w-16" /> : null}
+                  {canManageMembers ? <TableHead className="w-16" /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {members.data!.content.map((m) => (
-                  <MemberRow key={m.id} member={m} projectId={projectId} canManage={canManage} />
+                  <MemberRow key={m.id} member={m} projectId={projectId} canManage={canManageMembers} />
                 ))}
               </TableBody>
             </Table>

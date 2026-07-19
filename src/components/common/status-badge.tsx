@@ -43,7 +43,7 @@ const map: Record<string, Tone> = {
 };
 
 export function StatusBadge({ value }: { value?: string | null }) {
-  if (!value) return <span className="text-muted-foreground">—</span>;
+  if (!value) return <span className="text-muted-foreground">-</span>;
   const tone = map[value] ?? "default";
   return (
     <Badge

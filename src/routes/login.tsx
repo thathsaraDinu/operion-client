@@ -30,7 +30,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — Operion" }] }),
+  head: () => ({ meta: [{ title: "Sign in - Operion" }] }),
   component: LoginPage,
 });
 
@@ -99,7 +99,7 @@ function LoginPage() {
               clarity.
             </h1>
             <p className="max-w-md text-base leading-relaxed text-muted-foreground">
-              Employees, attendance, leave, projects and tasks — a single, beautifully
+              Employees, attendance, leave, projects and tasks - a single, beautifully
               designed control room for HR, managers and their teams.
             </p>
 

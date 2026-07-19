@@ -17,10 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
-import { employeesApi } from "@/lib/api/employees";
-import { departmentsApi } from "@/lib/api/departments";
-import { projectsApi } from "@/lib/api/projects";
-import { tasksApi } from "@/lib/api/tasks";
+import { dashboardApi } from "@/lib/api/dashboard";
 import { leavesApi } from "@/lib/api/leaves";
 import { attendanceApi } from "@/lib/api/attendance";
 import { useAuthStore } from "@/stores/auth-store";
@@ -29,7 +26,7 @@ import { ROLE_LABEL, useCan } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Operion" }] }),
+  head: () => ({ meta: [{ title: "Dashboard - Operion" }] }),
   component: DashboardPage,
 });
 
@@ -113,36 +110,9 @@ function DashboardPage() {
   const canReadAllLeaves = useCan("leaves:readAll");
   const canReadAllTasks = useCan("tasks:readAll");
 
-  const employees = useQuery({
-    queryKey: ["employees", { size: 1 }],
-    queryFn: () => employeesApi.list({ size: 1 }),
-    enabled: canReadEmployees,
-  });
-  const departments = useQuery({
-    queryKey: ["departments", { size: 1 }],
-    queryFn: () => departmentsApi.list({ size: 1 }),
-  });
-  const projects = useQuery({
-    queryKey: ["projects", { size: 1 }],
-    queryFn: () => projectsApi.list({ size: 1 }),
-  });
-  const tasks = useQuery({
-    queryKey: ["tasks", { size: 1 }],
-    queryFn: () => tasksApi.list({ size: 1 }),
-    enabled: canReadAllTasks,
-  });
-  const pendingLeaves = useQuery({
-    queryKey: ["leaves", "PENDING", { size: 5 }],
-    queryFn: () => leavesApi.byStatus("PENDING", { size: 5 }),
-    enabled: canReadAllLeaves,
-  });
-  const myAttendance = useQuery({
-    queryKey: ["attendance", "me", { size: 5 }],
-    queryFn: () => attendanceApi.mine({ size: 5, sort: "date,desc" }),
-  });
-  const myLeaves = useQuery({
-    queryKey: ["leaves", "me", { size: 5 }],
-    queryFn: () => leavesApi.mine({ size: 5, sort: "createdAt,desc" }),
+  const dashboard = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => dashboardApi.getStats(),
   });
 
   return (
@@ -164,7 +134,7 @@ function DashboardPage() {
               <span className="text-sunset-gradient">{user?.firstName ?? "there"}</span>
             </h1>
             <p className="max-w-lg text-sm text-muted-foreground">
-              Here's the pulse of your organization today — attendance, requests, projects
+              Here's the pulse of your organization today - attendance, requests, projects
               and tasks.
             </p>
           </div>
@@ -185,50 +155,108 @@ function DashboardPage() {
 
       {/* Stat grid */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {canReadEmployees ? (
-          <StatCard
-            label="Employees"
-            value={employees.data?.totalElements ?? "—"}
-            icon={Users}
-            tone="ember"
-            hint="Total workforce"
-            loading={employees.isLoading}
-          />
-        ) : null}
-        <StatCard
-          label="Departments"
-          value={departments.data?.totalElements ?? "—"}
-          icon={Building2}
-          tone="sunset"
-          hint="Organizational units"
-          loading={departments.isLoading}
-        />
-        <StatCard
-          label="Projects"
-          value={projects.data?.totalElements ?? "—"}
-          icon={FolderKanban}
-          tone="amber"
-          hint="Active initiatives"
-          loading={projects.isLoading}
-        />
-        {canReadAllTasks ? (
-          <StatCard
-            label="Tasks"
-            value={tasks.data?.totalElements ?? "—"}
-            icon={ListChecks}
-            tone="plum"
-            hint="Across all projects"
-            loading={tasks.isLoading}
-          />
+        {user?.role === "ADMIN" || user?.role === "HR" ? (
+          <>
+            {canReadEmployees ? (
+              <StatCard
+                label="Employees"
+                value={dashboard.data?.totalEmployees ?? "-"}
+                icon={Users}
+                tone="ember"
+                hint="Total workforce"
+                loading={dashboard.isLoading}
+              />
+            ) : null}
+            <StatCard
+              label="Departments"
+              value={dashboard.data?.totalDepartments ?? "-"}
+              icon={Building2}
+              tone="sunset"
+              hint="Organizational units"
+              loading={dashboard.isLoading}
+            />
+            <StatCard
+              label="Projects"
+              value={dashboard.data?.totalProjects ?? "-"}
+              icon={FolderKanban}
+              tone="amber"
+              hint="Active initiatives"
+              loading={dashboard.isLoading}
+            />
+            {user?.role === "ADMIN" ? (
+              <StatCard
+                label="Tasks"
+                value={dashboard.data?.totalTasks ?? "-"}
+                icon={ListChecks}
+                tone="plum"
+                hint="Across all projects"
+                loading={dashboard.isLoading}
+              />
+            ) : (
+              <StatCard
+                label="Pending leaves"
+                value={dashboard.data?.pendingLeaveRequests ?? "-"}
+                icon={CalendarOff}
+                tone="plum"
+                hint="Awaiting approval"
+                loading={dashboard.isLoading}
+              />
+            )}
+          </>
+        ) : user?.role === "MANAGER" ? (
+          <>
+            <StatCard
+              label="My Projects"
+              value={dashboard.data?.myProjects ?? "-"}
+              icon={FolderKanban}
+              tone="amber"
+              hint="Active initiatives"
+              loading={dashboard.isLoading}
+            />
+            <StatCard
+              label="My Tasks"
+              value={dashboard.data?.myTasks ?? "-"}
+              icon={ListChecks}
+              tone="plum"
+              hint="Assigned to me"
+              loading={dashboard.isLoading}
+            />
+            <StatCard
+              label="Team Leaves"
+              value={dashboard.data?.teamPendingLeaves ?? "-"}
+              icon={CalendarOff}
+              tone="sunset"
+              hint="Pending approvals"
+              loading={dashboard.isLoading}
+            />
+            <StatCard
+              label="Completed Tasks"
+              value={dashboard.data?.myCompletedTasks ?? "-"}
+              icon={ShieldCheck}
+              tone="success"
+              hint="Done this month"
+              loading={dashboard.isLoading}
+            />
+          </>
         ) : (
-          <StatCard
-            label="My leaves"
-            value={myLeaves.data?.totalElements ?? "—"}
-            icon={CalendarOff}
-            tone="plum"
-            hint="Submitted this year"
-            loading={myLeaves.isLoading}
-          />
+          <>
+            <StatCard
+              label="My Tasks"
+              value={dashboard.data?.myCompletedTasksEmployee ?? "-"}
+              icon={ListChecks}
+              tone="plum"
+              hint="Assigned to me"
+              loading={dashboard.isLoading}
+            />
+            <StatCard
+              label="My Leaves"
+              value={dashboard.data?.myPendingLeaves ?? "-"}
+              icon={CalendarOff}
+              tone="sunset"
+              hint="Pending requests"
+              loading={dashboard.isLoading}
+            />
+          </>
         )}
       </section>
 
@@ -250,25 +278,28 @@ function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {(myAttendance.data?.content ?? []).length === 0 ? (
+            {(dashboard.data?.recentAttendance ?? []).length === 0 ? (
               <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
                 No attendance records yet. Clock in from the Attendance page.
               </p>
             ) : (
-              myAttendance.data!.content.map((a) => (
+              dashboard.data!.recentAttendance!.map((a) => (
                 <div
                   key={a.id}
-                  className="group flex items-center justify-between rounded-xl border border-border/60 bg-card px-3.5 py-3 transition hover:border-primary/40 hover:shadow-sm"
+                  className="group flex items-center justify-between rounded-xl border border-border/60 bg-card px-4 py-3 transition hover:border-primary/40 hover:shadow-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                  <div className="flex flex-1 items-center gap-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                       <CalendarClock className="h-4 w-4" />
                     </div>
-                    <div className="text-sm">
-                      <div className="font-semibold">{fmtDate(a.date)}</div>
+                    <div className="flex flex-1 items-center gap-4 text-sm">
+                      <div className="font-medium min-w-[80px]">{fmtDate(a.date)}</div>
+                      {a.employeeName && (user?.role === "ADMIN" || user?.role === "HR" || user?.role === "MANAGER") ? (
+                        <div className="text-xs text-muted-foreground min-w-[100px] truncate">{a.employeeName}</div>
+                      ) : null}
                       <div className="text-xs text-muted-foreground">
-                        In {a.clockIn ? fmtDate(a.clockIn, "h:mm a") : "—"} · Out{" "}
-                        {a.clockOut ? fmtDate(a.clockOut, "h:mm a") : "—"}
+                        In {a.clockIn ? fmtDate(a.clockIn, "h:mm a") : "-"} · Out{" "}
+                        {a.clockOut ? fmtDate(a.clockOut, "h:mm a") : "-"}
                       </div>
                     </div>
                   </div>
@@ -285,7 +316,7 @@ function DashboardPage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <CalendarOff className="h-4 w-4" />
               </div>
-              {canReadAllLeaves ? "Pending leave approvals" : "My recent leave requests"}
+              {user?.role === "ADMIN" || user?.role === "HR" || user?.role === "MANAGER" ? "Pending leave approvals" : "My recent leave requests"}
             </CardTitle>
             <Link
               to="/leaves"
@@ -295,26 +326,22 @@ function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {(() => {
-              const rows =
-                (canReadAllLeaves ? pendingLeaves.data?.content : myLeaves.data?.content) ?? [];
-              if (rows.length === 0)
-                return (
-                  <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-                    Nothing to show.
-                  </p>
-                );
-              return rows.map((l) => (
+            {(dashboard.data?.recentLeaves ?? []).length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+                Nothing to show.
+              </p>
+            ) : (
+              dashboard.data!.recentLeaves!.map((l) => (
                 <div
                   key={l.id}
-                  className="flex items-center justify-between rounded-xl border border-border/60 bg-card px-3.5 py-3 transition hover:border-primary/40 hover:shadow-sm"
+                  className="group flex items-center justify-between rounded-xl border border-border/60 bg-card px-4 py-3 transition hover:border-primary/40 hover:shadow-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sunset-gradient text-white">
+                  <div className="flex flex-1 items-center gap-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sunset-gradient text-white">
                       <CalendarOff className="h-4 w-4" />
                     </div>
-                    <div className="text-sm">
-                      <div className="font-semibold">{l.employeeName}</div>
+                    <div className="flex flex-1 items-center gap-4 text-sm">
+                      <div className="font-medium min-w-[100px] truncate">{l.employeeName}</div>
                       <div className="text-xs text-muted-foreground">
                         {l.leaveType} · {fmtDate(l.startDate)} → {fmtDate(l.endDate)}
                       </div>
@@ -322,8 +349,8 @@ function DashboardPage() {
                   </div>
                   <StatusBadge value={l.status} />
                 </div>
-              ));
-            })()}
+              ))
+            )}
           </CardContent>
         </Card>
       </section>

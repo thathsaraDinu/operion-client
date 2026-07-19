@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { TOKEN_STORAGE_KEY } from "@/lib/api/client";
 import type { AuthUser, Role } from "@/lib/api/types";
-import type { LoginResponse } from "@/lib/api/auth";
+import type { LoginResponse, ProfileResponse } from "@/lib/api/auth";
+import { getProfile } from "@/lib/api/auth";
 
 interface JwtPayload {
   sub?: string;
@@ -54,6 +55,8 @@ interface AuthState {
   setToken: (token: string) => void;
   /** Preferred: persist the JWT together with the identity returned by /auth/login. */
   setSession: (resp: LoginResponse) => void;
+  /** Fetch user profile from /api/auth/me and update user state */
+  fetchProfile: () => Promise<void>;
   logout: () => void;
   isAuthenticated: () => boolean;
   hasRole: (...roles: Role[]) => boolean;
@@ -85,6 +88,21 @@ export const useAuthStore = create<AuthState>()(
           lastName: claims?.lastName ?? "",
         };
         set({ token: resp.token, user });
+      },
+      fetchProfile: async () => {
+        try {
+          const profile = await getProfile();
+          const user: AuthUser = {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+          };
+          set({ user });
+        } catch (error) {
+          console.error("Failed to fetch profile:", error);
+        }
       },
       logout: () => {
         if (typeof window !== "undefined") {

@@ -18,7 +18,7 @@ export const departmentsApi = {
   create: (payload: DepartmentPayload) =>
     apiClient.post<Department>("/api/departments", payload).then((r) => r.data),
   update: (id: number, payload: Partial<DepartmentPayload>) =>
-    apiClient.put<Department>(`/api/departments/${id}`, payload).then((r) => r.data),
+    apiClient.patch<Department>(`/api/departments/${id}`, payload).then((r) => r.data),
   remove: (id: number) => apiClient.delete<void>(`/api/departments/${id}`).then((r) => r.data),
   employees: (id: number, p?: PageParams) =>
     apiClient

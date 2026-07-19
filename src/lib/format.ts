@@ -1,7 +1,7 @@
 import { format, parseISO } from "date-fns";
 
 export function fmtDate(d?: string | null, pattern = "MMM d, yyyy") {
-  if (!d) return "—";
+  if (!d) return "-";
   try {
     return format(parseISO(d), pattern);
   } catch {

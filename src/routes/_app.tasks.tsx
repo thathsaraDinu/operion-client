@@ -115,7 +115,7 @@ const priorityMeta: Record<TaskPriority, { color: string; label: string }> = {
 };
 
 export const Route = createFileRoute("/_app/tasks")({
-  head: () => ({ meta: [{ title: "Tasks — Operion" }] }),
+  head: () => ({ meta: [{ title: "Tasks - Operion" }] }),
   component: TasksPage,
 });
 
@@ -193,7 +193,7 @@ function TasksPage() {
     <div className="space-y-6">
       <PageHeader
         title="Tasks"
-        description="Kanban board across projects — drag focus, ship faster."
+        description="Kanban board across projects - drag focus, ship faster."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-2.5 py-1.5">

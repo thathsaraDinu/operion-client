@@ -18,7 +18,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Forgot Password — Operion" }] }),
+  head: () => ({ meta: [{ title: "Forgot Password - Operion" }] }),
   component: ForgotPasswordPage,
 });
 

@@ -35,7 +35,7 @@ import {
 import { StatusBadge } from "@/components/common/status-badge";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states";
-import { RoleGate, useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
 import { Field } from "@/routes/_app.employees";
 import { projectsApi, type ProjectCreatePayload } from "@/lib/api/projects";
 import { apiErrorMessage } from "@/lib/api/client";
@@ -55,7 +55,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/_app/projects")({
-  head: () => ({ meta: [{ title: "Projects — Operion" }] }),
+  head: () => ({ meta: [{ title: "Projects - Operion" }] }),
   component: ProjectsPage,
 });
 
@@ -64,8 +64,9 @@ function ProjectsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
-  const canManage = useHasRole("ADMIN", "HR", "MANAGER");
-  const canDelete = useHasRole("ADMIN", "HR");
+  const canCreate = useCan("projects:create");
+  const canUpdate = useCan("projects:update");
+  const canDelete = useCan("projects:delete");
   const user = useAuthStore((s) => s.user);
   const isEmployee = user?.role === "EMPLOYEE";
 
@@ -94,11 +95,11 @@ function ProjectsPage() {
         title="Projects"
         description="Track initiatives across the organization."
         actions={
-          <RoleGate roles={["ADMIN", "HR", "MANAGER"]}>
+          canCreate ? (
             <Button onClick={() => setOpenCreate(true)}>
               <Plus className="h-4 w-4" /> New project
             </Button>
-          </RoleGate>
+          ) : null
         }
       />
 
@@ -133,7 +134,7 @@ function ProjectsPage() {
                           <UserCheck className="h-3.5 w-3.5" />
                         </div>
                       )}
-                      {canManage ? (
+                      {canUpdate ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">

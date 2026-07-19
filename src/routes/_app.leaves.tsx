@@ -53,7 +53,8 @@ import { Field } from "@/routes/_app.employees";
 import { leavesApi } from "@/lib/api/leaves";
 import { apiErrorMessage } from "@/lib/api/client";
 import { fmtDate } from "@/lib/format";
-import { useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth-store";
 import type { LeaveRequest, LeaveStatus, LeaveType } from "@/lib/api/types";
 
 const leaveTypes: LeaveType[] = ["ANNUAL", "SICK", "CASUAL", "MATERNITY", "UNPAID"];
@@ -72,13 +73,14 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/_app/leaves")({
-  head: () => ({ meta: [{ title: "Leave — Operion" }] }),
+  head: () => ({ meta: [{ title: "Leave - Operion" }] }),
   component: LeavesPage,
 });
 
 function LeavesPage() {
   const [open, setOpen] = useState(false);
-  const canApprove = useHasRole("ADMIN", "HR", "MANAGER");
+  const canApprove = useCan("leaves:approve");
+  const canReadAll = useCan("leaves:readAll");
 
   return (
     <div className="space-y-6">
@@ -92,7 +94,7 @@ function LeavesPage() {
         }
       />
 
-      {canApprove ? (
+      {canReadAll ? (
         <Tabs defaultValue="me">
           <TabsList>
             <TabsTrigger value="me">My requests</TabsTrigger>
@@ -126,9 +128,10 @@ function LeaveTable({
   status?: LeaveStatus;
 }) {
   const [page, setPage] = useState(0);
-  const canApprove = useHasRole("ADMIN", "HR", "MANAGER");
+  const canApprove = useCan("leaves:approve");
   const qc = useQueryClient();
   const [deleting, setDeleting] = useState<LeaveRequest | null>(null);
+  const user = useAuthStore((s) => s.user);
 
   const query = useQuery({
     queryKey: ["leaves", mode, status, { page }],
@@ -218,12 +221,14 @@ function LeaveTable({
                           </DropdownMenuItem>
                         </>
                       ) : null}
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleting(l)}
-                      >
-                        <Trash2 className="h-4 w-4" /> Delete
-                      </DropdownMenuItem>
+                      {(mode === "me" && l.status === "PENDING") ? (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleting(l)}
+                        >
+                          <Trash2 className="h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

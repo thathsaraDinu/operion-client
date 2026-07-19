@@ -27,15 +27,15 @@ import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states
 import { attendanceApi } from "@/lib/api/attendance";
 import { apiErrorMessage } from "@/lib/api/client";
 import { fmtDate, fmtTime } from "@/lib/format";
-import { useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_app/attendance")({
-  head: () => ({ meta: [{ title: "Attendance — Operion" }] }),
+  head: () => ({ meta: [{ title: "Attendance - Operion" }] }),
   component: AttendancePage,
 });
 
 function AttendancePage() {
-  const canSeeAll = useHasRole("ADMIN", "HR", "MANAGER");
+  const canSeeAll = useCan("attendance:readAll");
 
   return (
     <div className="space-y-6">
@@ -103,7 +103,7 @@ function ClockCard() {
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
             {isToday
-              ? `In ${fmtTime(latest?.clockIn)} · Out ${latest?.clockOut ? fmtTime(latest.clockOut) : "—"}`
+              ? `In ${fmtTime(latest?.clockIn)} · Out ${latest?.clockOut ? fmtTime(latest.clockOut) : "-"}`
               : "Not clocked in yet"}
           </div>
         </div>
@@ -164,8 +164,8 @@ function AttendanceTable({ mode }: { mode: "me" | "all" }) {
                 <TableCell className="font-medium">{a.employeeName}</TableCell>
               ) : null}
               <TableCell>{fmtDate(a.date)}</TableCell>
-              <TableCell>{a.clockIn ? fmtTime(a.clockIn) : "—"}</TableCell>
-              <TableCell>{a.clockOut ? fmtTime(a.clockOut) : "—"}</TableCell>
+              <TableCell>{a.clockIn ? fmtTime(a.clockIn) : "-"}</TableCell>
+              <TableCell>{a.clockOut ? fmtTime(a.clockOut) : "-"}</TableCell>
               <TableCell>
                 <StatusBadge value={a.status} />
               </TableCell>

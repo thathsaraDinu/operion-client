@@ -31,8 +31,25 @@ export interface LoginResponse {
   role: Role;
 }
 
+export interface ProfileResponse {
+  id: number;
+  email: string;
+  role: Role;
+  firstName: string;
+  lastName: string;
+  departmentId: number | null;
+  departmentName: string | null;
+  position: string | null;
+  phone: string | null;
+}
+
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>("/api/auth/login", payload);
+  return data;
+}
+
+export async function getProfile(): Promise<ProfileResponse> {
+  const { data } = await apiClient.get<ProfileResponse>("/api/auth/me");
   return data;
 }
 

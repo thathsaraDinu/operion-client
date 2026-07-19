@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states";
-import { RoleGate, useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
 import { Field } from "@/routes/_app.employees";
 import { departmentsApi, type DepartmentPayload } from "@/lib/api/departments";
 import { apiErrorMessage } from "@/lib/api/client";
@@ -49,7 +49,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export const Route = createFileRoute("/_app/departments")({
-  head: () => ({ meta: [{ title: "Departments — Operion" }] }),
+  head: () => ({ meta: [{ title: "Departments - Operion" }] }),
   component: DepartmentsPage,
 });
 
@@ -58,8 +58,9 @@ function DepartmentsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
   const [deleting, setDeleting] = useState<Department | null>(null);
-  const canManage = useHasRole("ADMIN", "HR");
-  const canDelete = useHasRole("ADMIN");
+  const canCreate = useCan("departments:create");
+  const canUpdate = useCan("departments:update");
+  const canDelete = useCan("departments:delete");
 
   const query = useQuery({
     queryKey: ["departments", { page }],
@@ -72,11 +73,11 @@ function DepartmentsPage() {
         title="Departments"
         description="Structure your organization into functional units."
         actions={
-          <RoleGate roles={["ADMIN", "HR"]}>
+          canCreate ? (
             <Button onClick={() => setOpenCreate(true)}>
               <Plus className="h-4 w-4" /> New department
             </Button>
-          </RoleGate>
+          ) : null
         }
       />
 
@@ -95,7 +96,7 @@ function DepartmentsPage() {
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Employees</TableHead>
-                {canManage ? <TableHead className="w-10" /> : null}
+                {canUpdate ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -104,10 +105,10 @@ function DepartmentsPage() {
                   <TableCell className="font-medium">{d.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{d.code}</TableCell>
                   <TableCell className="max-w-md truncate text-muted-foreground">
-                    {d.description ?? "—"}
+                    {d.description ?? "-"}
                   </TableCell>
                   <TableCell className="text-right">{d.employeeCount}</TableCell>
-                  {canManage ? (
+                  {canUpdate ? (
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

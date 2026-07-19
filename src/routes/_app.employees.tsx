@@ -43,7 +43,7 @@ import {
 import { StatusBadge } from "@/components/common/status-badge";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states";
-import { RoleGate, useHasRole } from "@/components/common/role-gate";
+import { useCan } from "@/lib/permissions";
 import {
   employeesApi,
   type EmployeeCreatePayload,
@@ -71,7 +71,7 @@ const createSchema = z.object({
 type CreateFormValues = z.infer<typeof createSchema>;
 
 export const Route = createFileRoute("/_app/employees")({
-  head: () => ({ meta: [{ title: "Employees — Operion" }] }),
+  head: () => ({ meta: [{ title: "Employees - Operion" }] }),
   component: EmployeesPage,
 });
 
@@ -81,7 +81,9 @@ function EmployeesPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState<Employee | null>(null);
-  const canManage = useHasRole("ADMIN", "HR");
+  const canCreate = useCan("employees:create");
+  const canUpdate = useCan("employees:update");
+  const canDelete = useCan("employees:delete");
 
   const query = useQuery({
     queryKey: ["employees", { page, size }],
@@ -89,17 +91,18 @@ function EmployeesPage() {
   });
 
   return (
-    <RoleGate roles={["ADMIN", "HR"]}>
-      <div className="space-y-6">
-        <PageHeader
-          title="Employees"
-          description="Manage employee records across your organization."
-          actions={
+    <div className="space-y-6">
+      <PageHeader
+        title="Employees"
+        description="Manage employee records across your organization."
+        actions={
+          canCreate ? (
             <Button onClick={() => setOpenCreate(true)}>
               <Plus className="h-4 w-4" /> New employee
             </Button>
-          }
-        />
+          ) : null
+        }
+      />
 
       {query.isLoading ? (
         <LoadingBlock />
@@ -119,7 +122,7 @@ function EmployeesPage() {
                 <TableHead>Position</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Status</TableHead>
-                {canManage ? <TableHead className="w-10" /> : null}
+                {canUpdate ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -132,13 +135,13 @@ function EmployeesPage() {
                   <TableCell>
                     <StatusBadge value={e.role} />
                   </TableCell>
-                  <TableCell>{e.departmentName ?? "—"}</TableCell>
-                  <TableCell>{e.position ?? "—"}</TableCell>
+                  <TableCell>{e.departmentName ?? "-"}</TableCell>
+                  <TableCell>{e.position ?? "-"}</TableCell>
                   <TableCell>{fmtDate(e.joiningDate)}</TableCell>
                   <TableCell>
                     <StatusBadge value={e.status} />
                   </TableCell>
-                  {canManage ? (
+                  {canUpdate ? (
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -177,7 +180,6 @@ function EmployeesPage() {
       <EditDialog employee={editing} onOpenChange={(v) => !v && setEditing(null)} />
       <DeleteDialog employee={deleting} onOpenChange={(v) => !v && setDeleting(null)} />
     </div>
-    </RoleGate>
   );
 }
 
