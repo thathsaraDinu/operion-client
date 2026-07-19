@@ -6,6 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  useDroppable,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Plus,
   MoreHorizontal,
   Pencil,
@@ -131,6 +144,15 @@ function TasksPage() {
   const [deleting, setDeleting] = useState<Task | null>(null);
   const [projectFilter, setProjectFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | TaskPriority>("ALL");
+  const [activeId, setActiveId] = useState<number | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   // Employees cannot list all tasks; they browse by project.
   // Managers/HR/Admin get the full board.
@@ -186,6 +208,37 @@ function TasksPage() {
     filtered.forEach((t) => groups[t.status].push(t));
     return groups;
   }, [filtered]);
+
+  const qc = useQueryClient();
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ taskId, newStatus }: { taskId: number; newStatus: TaskStatus }) =>
+      tasksApi.update(taskId, { status: newStatus }),
+    onSuccess: () => {
+      toast.success("Task status updated");
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as number);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const taskId = active.id as number;
+    const newStatus = over.id as TaskStatus;
+
+    const task = filtered.find((t) => t.id === taskId);
+    if (!task || task.status === newStatus) return;
+
+    updateStatusMutation.mutate({ taskId, newStatus });
+  };
 
   const needsProject = !canReadAll && projectFilter === "ALL";
 
@@ -260,113 +313,54 @@ function TasksPage() {
           description={canCreate ? "Create the first task to get moving." : "Nothing here yet."}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {statuses.map((s) => {
-            const meta = statusMeta[s];
-            const list = byStatus[s];
-            return (
-              <div
-                key={s}
-                className="flex flex-col rounded-2xl border border-border/60 bg-card/60 backdrop-blur"
-              >
-                <div className={cn("rounded-t-2xl bg-gradient-to-r px-4 py-3 text-white", meta.color)}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <meta.icon className="h-4 w-4" />
-                      {meta.label}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            {statuses.map((s) => {
+              const meta = statusMeta[s];
+              const list = byStatus[s];
+              return (
+                <DroppableColumn key={s} status={s} meta={meta} list={list}>
+                  <SortableContext items={list.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-1 flex-col gap-2.5 p-3">
+                      {list.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-border/60 py-8 text-center text-xs text-muted-foreground">
+                          Nothing here
+                        </p>
+                      ) : (
+                        list.map((t) => (
+                          <SortableTaskCard
+                            key={t.id}
+                            task={t}
+                            canUpdate={canUpdate}
+                            canDelete={canDelete}
+                            canReadAll={canReadAll}
+                            myTaskIds={myTaskIds}
+                            onEdit={() => setEditing(t)}
+                            onDelete={() => setDeleting(t)}
+                          />
+                        ))
+                      )}
                     </div>
-                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-bold">
-                      {list.length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-1 flex-col gap-2.5 p-3">
-                  {list.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border/60 py-8 text-center text-xs text-muted-foreground">
-                      Nothing here
-                    </p>
-                  ) : (
-                    list.map((t) => (
-                      <div
-                        key={t.id}
-                        className="group relative rounded-xl border border-border/60 bg-card p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-sm font-semibold leading-snug">{t.title}</h4>
-                          <div className="flex items-center gap-1">
-                            {canReadAll && myTaskIds.has(t.id) && (
-                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary" title="Assigned to you">
-                                <UserCheck className="h-3 w-3" />
-                              </div>
-                            )}
-                            {canUpdate || canDelete ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 opacity-0 transition group-hover:opacity-100"
-                                  >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {canUpdate ? (
-                                    <DropdownMenuItem onClick={() => setEditing(t)}>
-                                      <Pencil className="h-4 w-4" /> Edit
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {canDelete ? (
-                                    <DropdownMenuItem
-                                      className="text-destructive focus:text-destructive"
-                                      onClick={() => setDeleting(t)}
-                                    >
-                                      <Trash2 className="h-4 w-4" /> Delete
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            ) : null}
-                          </div>
-                        </div>
-                        {t.description ? (
-                          <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
-                            {t.description}
-                          </p>
-                        ) : null}
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                              priorityMeta[t.priority].color,
-                            )}
-                          >
-                            <Flag className="h-3 w-3" />
-                            {priorityMeta[t.priority].label}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
-                            <FolderKanban className="h-3 w-3" />
-                            {t.projectName}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-2.5">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-sunset-gradient text-[9px] font-bold text-white">
-                            {initialsOf(t.assignedEmployeeName)}
-                          </div>
-                          <div className="min-w-0 truncate text-xs">
-                            <span className="text-muted-foreground">Assigned to </span>
-                            <span className="font-medium">{t.assignedEmployeeName}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  </SortableContext>
+                </DroppableColumn>
+              );
+            })}
+          </div>
+          <DragOverlay>
+            {activeId ? (
+              <TaskCardOverlay
+                task={filtered.find((t) => t.id === activeId)!}
+                canReadAll={canReadAll}
+                myTaskIds={myTaskIds}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Summary footer */}
@@ -394,6 +388,191 @@ function TasksPage() {
       {canDelete ? (
         <DeleteDialog task={deleting} onOpenChange={(v) => !v && setDeleting(null)} />
       ) : null}
+    </div>
+  );
+}
+
+function SortableTaskCard({
+  task,
+  canUpdate,
+  canDelete,
+  canReadAll,
+  myTaskIds,
+  onEdit,
+  onDelete,
+}: {
+  task: Task;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canReadAll: boolean;
+  myTaskIds: Set<number>;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="group relative rounded-xl border border-border/60 bg-card p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md cursor-grab active:cursor-grabbing"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold leading-snug">{task.title}</h4>
+        <div className="flex items-center gap-1">
+          {canReadAll && myTaskIds.has(task.id) && (
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary" title="Assigned to you">
+              <UserCheck className="h-3 w-3" />
+            </div>
+          )}
+          {canUpdate || canDelete ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 transition group-hover:opacity-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canUpdate ? (
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil className="h-4 w-4" /> Edit
+                  </DropdownMenuItem>
+                ) : null}
+                {canDelete ? (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={onDelete}
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+      </div>
+      {task.description ? (
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+          {task.description}
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            priorityMeta[task.priority].color,
+          )}
+        >
+          <Flag className="h-3 w-3" />
+          {priorityMeta[task.priority].label}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
+          <FolderKanban className="h-3 w-3" />
+          {task.projectName}
+        </span>
+      </div>
+      <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-2.5">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-sunset-gradient text-[9px] font-bold text-white">
+          {initialsOf(task.assignedEmployeeName)}
+        </div>
+        <div className="min-w-0 truncate text-xs">
+          <span className="text-muted-foreground">Assigned to </span>
+          <span className="font-medium">{task.assignedEmployeeName}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskCardOverlay({
+  task,
+  canReadAll,
+  myTaskIds,
+}: {
+  task: Task;
+  canReadAll: boolean;
+  myTaskIds: Set<number>;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-lg rotate-3">
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold leading-snug">{task.title}</h4>
+        {canReadAll && myTaskIds.has(task.id) && (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <UserCheck className="h-3 w-3" />
+          </div>
+        )}
+      </div>
+      {task.description ? (
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+          {task.description}
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            priorityMeta[task.priority].color,
+          )}
+        >
+          <Flag className="h-3 w-3" />
+          {priorityMeta[task.priority].label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DroppableColumn({
+  status,
+  children,
+  meta,
+  list,
+}: {
+  status: TaskStatus;
+  children: React.ReactNode;
+  meta: typeof statusMeta[TaskStatus];
+  list: Task[];
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex flex-col rounded-2xl border border-border/60 bg-card/60 backdrop-blur transition-colors",
+        isOver && "border-primary/50 bg-accent/20"
+      )}
+    >
+      <div className={cn("rounded-t-2xl bg-gradient-to-r px-4 py-3 text-white", meta.color)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <meta.icon className="h-4 w-4" />
+            {meta.label}
+          </div>
+          <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-bold">
+            {list.length}
+          </span>
+        </div>
+      </div>
+      {children}
     </div>
   );
 }

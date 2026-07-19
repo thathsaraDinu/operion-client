@@ -233,35 +233,62 @@ function MemberRow({
   canManage: boolean;
 }) {
   const qc = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
   const remove = useMutation({
     mutationFn: () => projectsApi.removeMember(projectId, member.id),
     onSuccess: () => {
       toast.success("Member removed");
       qc.invalidateQueries({ queryKey: ["projects", projectId, "members"] });
+      setDeleting(false);
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{member.employeeName}</TableCell>
-      <TableCell>
-        <StatusBadge value={member.projectRole} />
-      </TableCell>
-      <TableCell>{fmtDate(member.assignedDate)}</TableCell>
-      {canManage ? (
+    <>
+      <TableRow>
+        <TableCell className="font-medium">{member.employeeName}</TableCell>
         <TableCell>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive"
-            onClick={() => remove.mutate()}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <StatusBadge value={member.projectRole} />
         </TableCell>
-      ) : null}
-    </TableRow>
+        <TableCell>{fmtDate(member.assignedDate)}</TableCell>
+        {canManage ? (
+          <TableCell>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive"
+              onClick={() => setDeleting(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </TableCell>
+        ) : null}
+      </TableRow>
+
+      <Dialog open={deleting} onOpenChange={setDeleting}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove member</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Remove <span className="font-medium text-foreground">{member.employeeName}</span> from this project?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => remove.mutate()}
+              disabled={remove.isPending}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

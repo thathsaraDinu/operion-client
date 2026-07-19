@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Check, X, Trash2, MoreHorizontal } from "lucide-react";
+import { Plus, Check, X, Trash2, MoreHorizontal, Pencil } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/common/status-badge";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { LoadingBlock, EmptyState, ErrorState } from "@/components/common/states";
@@ -79,6 +85,7 @@ export const Route = createFileRoute("/_app/leaves")({
 
 function LeavesPage() {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<LeaveRequest | null>(null);
   const canApprove = useCan("leaves:approve");
   const canReadAll = useCan("leaves:readAll");
 
@@ -102,20 +109,21 @@ function LeavesPage() {
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
           <TabsContent value="me" className="mt-4">
-            <LeaveTable mode="me" />
+            <LeaveTable mode="me" onEdit={setEditing} />
           </TabsContent>
           <TabsContent value="pending" className="mt-4">
-            <LeaveTable mode="status" status="PENDING" />
+            <LeaveTable mode="status" status="PENDING" onEdit={setEditing} />
           </TabsContent>
           <TabsContent value="all" className="mt-4">
-            <LeaveTable mode="all" />
+            <LeaveTable mode="all" onEdit={setEditing} />
           </TabsContent>
         </Tabs>
       ) : (
-        <LeaveTable mode="me" />
+        <LeaveTable mode="me" onEdit={setEditing} />
       )}
 
       <CreateDialog open={open} onOpenChange={setOpen} />
+      <EditDialog leave={editing} onOpenChange={(v: boolean) => !v && setEditing(null)} />
     </div>
   );
 }
@@ -123,9 +131,11 @@ function LeavesPage() {
 function LeaveTable({
   mode,
   status,
+  onEdit,
 }: {
   mode: "me" | "all" | "status";
   status?: LeaveStatus;
+  onEdit: (leave: LeaveRequest) => void;
 }) {
   const [page, setPage] = useState(0);
   const canApprove = useCan("leaves:approve");
@@ -150,7 +160,14 @@ function LeaveTable({
       toast.success("Updated");
       qc.invalidateQueries({ queryKey: ["leaves"] });
     },
-    onError: (e) => toast.error(apiErrorMessage(e)),
+    onError: (e) => {
+      const errorMsg = apiErrorMessage(e);
+      if (errorMsg.includes("cannot approve or reject your own")) {
+        toast.error("You cannot approve or reject your own leave request");
+      } else {
+        toast.error(errorMsg);
+      }
+    },
   });
 
   const remove = useMutation({
@@ -163,86 +180,130 @@ function LeaveTable({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
+  const canApproveRequest = (leave: LeaveRequest) => {
+    return canApprove && leave.status === "PENDING" && leave.employeeId !== user?.id;
+  };
+
   if (query.isLoading) return <LoadingBlock />;
   if (query.isError) return <ErrorState message={apiErrorMessage(query.error)} />;
   if ((query.data?.content.length ?? 0) === 0) return <EmptyState title="No leave requests" />;
 
   return (
     <>
-      <Card className="overflow-hidden border-border/60 p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {mode !== "me" ? <TableHead>Employee</TableHead> : null}
-              <TableHead>Type</TableHead>
-              <TableHead>Dates</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-16" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {query.data!.content.map((l) => (
-              <TableRow key={l.id}>
-                {mode !== "me" ? (
-                  <TableCell className="font-medium">{l.employeeName}</TableCell>
-                ) : null}
-                <TableCell>
-                  <StatusBadge value={l.leaveType} />
-                </TableCell>
-                <TableCell>
-                  {fmtDate(l.startDate)} → {fmtDate(l.endDate)}
-                </TableCell>
-                <TableCell className="max-w-xs truncate text-muted-foreground">
-                  {l.reason}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge value={l.status} />
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canApprove && l.status === "PENDING" ? (
-                        <>
-                          <DropdownMenuItem
-                            onClick={() => decide.mutate({ id: l.id, status: "APPROVED" })}
-                          >
-                            <Check className="h-4 w-4" /> Approve
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => decide.mutate({ id: l.id, status: "REJECTED" })}
-                          >
-                            <X className="h-4 w-4" /> Reject
-                          </DropdownMenuItem>
-                        </>
-                      ) : null}
-                      {(mode === "me" && l.status === "PENDING") ? (
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleting(l)}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+      <TooltipProvider>
+        <Card className="overflow-hidden border-border/60 p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {mode !== "me" ? <TableHead>Employee</TableHead> : null}
+                <TableHead>Type</TableHead>
+                <TableHead>Dates</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-16" />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <PaginationBar
-          page={page}
-          totalPages={query.data!.totalPages}
-          totalElements={query.data!.totalElements}
-          onPageChange={setPage}
-        />
-      </Card>
+            </TableHeader>
+            <TableBody>
+              {query.data!.content.map((l) => (
+                <TableRow key={l.id}>
+                  {mode !== "me" ? (
+                    <TableCell className="font-medium">{l.employeeName}</TableCell>
+                  ) : null}
+                  <TableCell>
+                    <StatusBadge value={l.leaveType} />
+                  </TableCell>
+                  <TableCell>
+                    {fmtDate(l.startDate)} → {fmtDate(l.endDate)}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-muted-foreground">
+                    {l.reason}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={l.status} />
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {canApprove && l.status === "PENDING" ? (
+                          <>
+                            {canApproveRequest(l) ? (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => decide.mutate({ id: l.id, status: "APPROVED" })}
+                                >
+                                  <Check className="h-4 w-4" /> Approve
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => decide.mutate({ id: l.id, status: "REJECTED" })}
+                                >
+                                  <X className="h-4 w-4" /> Reject
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <DropdownMenuItem
+                                      disabled
+                                      className="text-muted-foreground cursor-not-allowed"
+                                    >
+                                      <Check className="h-4 w-4" /> Approve
+                                    </DropdownMenuItem>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>You cannot approve your own leave request</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <DropdownMenuItem
+                                      disabled
+                                      className="text-muted-foreground cursor-not-allowed"
+                                    >
+                                      <X className="h-4 w-4" /> Reject
+                                    </DropdownMenuItem>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>You cannot reject your own leave request</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                          </>
+                        ) : null}
+                        {(mode === "me" && l.status === "PENDING") ? (
+                          <>
+                            <DropdownMenuItem onClick={() => onEdit(l)}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleting(l)}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <PaginationBar
+            page={page}
+            totalPages={query.data!.totalPages}
+            totalElements={query.data!.totalElements}
+            onPageChange={setPage}
+          />
+        </Card>
+      </TooltipProvider>
 
       <Dialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
         <DialogContent>
@@ -338,6 +399,90 @@ function CreateDialog({
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Submitting…" : "Submit"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditDialog({
+  leave,
+  onOpenChange,
+}: {
+  leave: LeaveRequest | null;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    values: leave
+      ? {
+          leaveType: leave.leaveType,
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          reason: leave.reason,
+        }
+      : undefined,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (v: FormValues) => leavesApi.update(leave!.id, v),
+    onSuccess: () => {
+      toast.success("Leave request updated");
+      qc.invalidateQueries({ queryKey: ["leaves"] });
+      onOpenChange(false);
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  return (
+    <Dialog open={!!leave} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit leave request</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
+          <Field label="Type">
+            <Select
+              value={form.watch("leaveType")}
+              onValueChange={(v) => form.setValue("leaveType", v as LeaveType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {leaveTypes.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Start date" error={form.formState.errors.startDate?.message}>
+              <Input type="date" {...form.register("startDate")} />
+            </Field>
+            <Field label="End date" error={form.formState.errors.endDate?.message}>
+              <Input type="date" {...form.register("endDate")} />
+            </Field>
+          </div>
+          <Field label="Reason" error={form.formState.errors.reason?.message}>
+            <Textarea rows={3} {...form.register("reason")} />
+          </Field>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </form>

@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import "./styles.css";
+import { initializeTheme } from "@/stores/theme-store";
 
 // Import the route tree
 import { routeTree } from "./routeTree.gen";
@@ -26,6 +27,9 @@ declare module "@tanstack/react-router" {
 // Render the app
 const rootElement = document.getElementById("root")!;
 if (!rootElement.innerHTML) {
+  // Initialize theme before rendering
+  initializeTheme();
+  
   const root = createRoot(rootElement);
   root.render(
     <StrictMode>

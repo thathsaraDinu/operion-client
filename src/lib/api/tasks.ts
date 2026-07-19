@@ -20,7 +20,7 @@ export const tasksApi = {
   list: (p?: PageParams) => apiClient.get<Page<Task>>("/api/tasks", qp(p)).then((r) => r.data),
   get: (id: number) => apiClient.get<Task>(`/api/tasks/${id}`).then((r) => r.data),
   update: (id: number, payload: Partial<Omit<TaskCreatePayload, "projectId" | "assignedEmployeeId">>) =>
-    apiClient.put<Task>(`/api/tasks/${id}`, payload).then((r) => r.data),
+    apiClient.patch<Task>(`/api/tasks/${id}`, payload).then((r) => r.data),
   remove: (id: number) => apiClient.delete<void>(`/api/tasks/${id}`).then((r) => r.data),
   byProject: (projectId: number, p?: PageParams) =>
     apiClient
