@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,8 +13,11 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
   useDroppable,
+  CollisionDetection,
+  rectIntersection,
+  closestCorners,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -114,6 +117,26 @@ const statusMeta: Record<
   },
 };
 
+// Custom collision detection that prioritizes columns over task cards
+const columnCollisionDetection: CollisionDetection = (args) => {
+  // Use built-in pointerWithin for initial collision detection (optimized)
+  const pointerCollisions = pointerWithin(args);
+
+  // Filter to only column collisions
+  const columnCollisions = pointerCollisions.filter((collision) => {
+    const { id } = collision;
+    return typeof id === 'string' && statuses.includes(id as TaskStatus);
+  });
+
+  // If pointer is within a column, return only that column
+  if (columnCollisions.length > 0) {
+    return columnCollisions;
+  }
+
+  // Otherwise, use closestCorners for task cards
+  return closestCorners(args);
+};
+
 const priorityMeta: Record<TaskPriority, { color: string; label: string }> = {
   LOW: { color: "bg-muted text-muted-foreground border-border", label: "Low" },
   MEDIUM: {
@@ -149,7 +172,7 @@ function TasksPage() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     })
   );
@@ -181,7 +204,10 @@ function TasksPage() {
     enabled: !!user && canReadAll,
   });
 
-  const myTaskIds = new Set(myTasksQ.data?.content.map((t) => t.id) ?? []);
+  const myTaskIds = useMemo(
+    () => new Set(myTasksQ.data?.content.map((t) => t.id) ?? []),
+    [myTasksQ.data?.content],
+  );
 
   const isLoading =
     (canReadAll && projectFilter === "ALL" ? allTasksQ.isLoading : projTasksQ.isLoading) ||
@@ -205,7 +231,9 @@ function TasksPage() {
 
   const byStatus = useMemo(() => {
     const groups: Record<TaskStatus, Task[]> = { TODO: [], IN_PROGRESS: [], DONE: [] };
-    filtered.forEach((t) => groups[t.status].push(t));
+    for (const task of filtered) {
+      groups[task.status].push(task);
+    }
     return groups;
   }, [filtered]);
 
@@ -221,24 +249,34 @@ function TasksPage() {
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as number);
-  };
+  }, []);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
     if (!over) return;
 
     const taskId = active.id as number;
-    const newStatus = over.id as TaskStatus;
+    let newStatus: TaskStatus;
+
+    // If dropped on a column (status string), use it directly
+    if (typeof over.id === 'string' && statuses.includes(over.id as TaskStatus)) {
+      newStatus = over.id as TaskStatus;
+    } else {
+      // If dropped on a task card, find which column it belongs to
+      const overTask = filtered.find((t) => t.id === over.id);
+      if (!overTask) return;
+      newStatus = overTask.status;
+    }
 
     const task = filtered.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
 
     updateStatusMutation.mutate({ taskId, newStatus });
-  };
+  }, [filtered, updateStatusMutation]);
 
   const needsProject = !canReadAll && projectFilter === "ALL";
 
@@ -315,7 +353,7 @@ function TasksPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={columnCollisionDetection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -392,7 +430,7 @@ function TasksPage() {
   );
 }
 
-function SortableTaskCard({
+const SortableTaskCard = memo(function SortableTaskCard({
   task,
   canUpdate,
   canDelete,
@@ -415,8 +453,8 @@ function SortableTaskCard({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transition: isDragging ? 'none' : transition,
+    opacity: isDragging ? 0.8 : 1,
   };
 
   return (
@@ -497,9 +535,9 @@ function SortableTaskCard({
       </div>
     </div>
   );
-}
+});
 
-function TaskCardOverlay({
+const TaskCardOverlay = memo(function TaskCardOverlay({
   task,
   canReadAll,
   myTaskIds,
@@ -536,9 +574,9 @@ function TaskCardOverlay({
       </div>
     </div>
   );
-}
+});
 
-function DroppableColumn({
+const DroppableColumn = memo(function DroppableColumn({
   status,
   children,
   meta,
@@ -575,7 +613,7 @@ function DroppableColumn({
       {children}
     </div>
   );
-}
+});
 
 function initialsOf(name?: string) {
   if (!name) return "??";
@@ -583,7 +621,7 @@ function initialsOf(name?: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "??";
 }
 
-function CreateDialog({
+const CreateDialog = memo(function CreateDialog({
   open,
   onOpenChange,
 }: {
@@ -741,9 +779,9 @@ function CreateDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
-function EditDialog({
+const EditDialog = memo(function EditDialog({
   task,
   onOpenChange,
 }: {
@@ -843,9 +881,9 @@ function EditDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
-function DeleteDialog({
+const DeleteDialog = memo(function DeleteDialog({
   task,
   onOpenChange,
 }: {
@@ -886,4 +924,4 @@ function DeleteDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
