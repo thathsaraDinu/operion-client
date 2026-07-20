@@ -129,4 +129,4 @@ Contributions are welcome! Please follow these guidelines:
 
 ## License
 
-This project is proprietary software. All rights reserved.
+This project is open source and available under the [MIT License](LICENSE).
