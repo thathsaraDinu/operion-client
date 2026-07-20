@@ -134,7 +134,7 @@ function ProjectDetailPage() {
           label="End date"
           value={project.data.endDate ? fmtDate(project.data.endDate) : "Ongoing"}
         />
-        <InfoCard label="Members" value={String(members.data?.totalElements ?? 0)} />
+        <InfoCard label="Members" value={String(members.data?.content.length ?? 0)} />
       </div>
 
       <section className="space-y-3">
