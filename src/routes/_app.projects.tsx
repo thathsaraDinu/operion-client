@@ -178,8 +178,8 @@ function ProjectsPage() {
           <div className="rounded-lg border border-border/60 bg-card">
             <PaginationBar
               page={page}
-              totalPages={query.data!.totalPages}
-              totalElements={query.data!.totalElements}
+              totalPages={query.data!.page.totalPages}
+              totalElements={query.data!.page.totalElements}
               onPageChange={setPage}
             />
           </div>

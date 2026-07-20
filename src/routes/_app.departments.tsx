@@ -138,8 +138,8 @@ function DepartmentsPage() {
           </Table>
           <PaginationBar
             page={page}
-            totalPages={query.data!.totalPages}
-            totalElements={query.data!.totalElements}
+            totalPages={query.data!.page.totalPages}
+            totalElements={query.data!.page.totalElements}
             onPageChange={setPage}
           />
         </Card>
